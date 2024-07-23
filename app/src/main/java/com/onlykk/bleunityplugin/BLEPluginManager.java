@@ -29,7 +29,6 @@ import android.content.pm.PackageManager;
 import android.os.Debug;
 import android.os.ParcelUuid;
 import android.util.Log;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -93,7 +92,7 @@ public class BLEPluginManager {
         bluetoothAdapter = bluetoothManager.getAdapter();
 
         if (bluetoothAdapter == null) {
-            Toast.makeText(context, "BLE not supported", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(context, "BLE not supported", Toast.LENGTH_SHORT).show();
             return;
         }
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
@@ -154,7 +153,7 @@ public class BLEPluginManager {
     @SuppressLint("MissingPermission")
     private void sendDataToClient(String data) {
         if (bluetoothGattServer == null || data.isEmpty()) {
-            Toast.makeText(context, "Server not started", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(context, "Server not started", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -171,7 +170,7 @@ public class BLEPluginManager {
     @SuppressLint("MissingPermission")
     private void sendDataToServer(String data) {
         if (bluetoothGatt == null || data.isEmpty()) {
-            Toast.makeText(context, "No device connected or data empty", Toast.LENGTH_SHORT).show();
+           // Toast.makeText(context, "No device connected or data empty", Toast.LENGTH_SHORT).show();
             return;
         }
         BluetoothGattCharacteristic characteristic = bluetoothGatt.getService(SERVICE_UUID).getCharacteristic(CHARACTERISTIC_UUID);
@@ -200,12 +199,16 @@ public class BLEPluginManager {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnAdvertisingStartSuccess", "");
+
             //runOnUiThread(() -> Toast.makeText(MainActivity.this, "Advertising started", Toast.LENGTH_SHORT).show());
         }
 
         @Override
         public void onStartFailure(int errorCode) {
             super.onStartFailure(errorCode);
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnAdvertisingStartFailure", String.valueOf(errorCode));
+
             // runOnUiThread(() -> Toast.makeText(MainActivity.this, "Advertising failed: " + errorCode, Toast.LENGTH_SHORT).show());
         }
     };
@@ -231,11 +234,15 @@ public class BLEPluginManager {
             super.onConnectionStateChange(device, status, newState);
             // runOnUiThread(() -> {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Toast.makeText(context, "Device connected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
+               // Toast.makeText(context, "Device connected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
                 connectedDevices.add(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", device.getAddress());
+
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Toast.makeText(context, "Device disconnected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
+               // Toast.makeText(context, "Device disconnected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
                 connectedDevices.remove(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", device.getAddress());
+
             }
             //  });
         }
@@ -259,7 +266,10 @@ public class BLEPluginManager {
                     bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
                 }
                 msgFromClient += new String(value, StandardCharsets.UTF_8);
-                //  runOnUiThread(() -> debugText.setText(new String(value, StandardCharsets.UTF_8)));
+                String message = device.getAddress() + "|" + new String(value, StandardCharsets.UTF_8);
+
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromClient", message);
+
             }
         }
     };
@@ -278,6 +288,7 @@ public class BLEPluginManager {
                     .build();
 
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnScanStarted", "" );
         } else {
             stopScan();
         }
@@ -299,15 +310,15 @@ public class BLEPluginManager {
             BluetoothDevice device = result.getDevice();
             Log.d(TAG, "Found Device " + device.getName() + " :" + device.getAddress());
             String address = device.getAddress();
-            if (!uniqueDeviceAddresses.contains(address)) {
-                uniqueDeviceAddresses.add(address);
+          //  if (!uniqueDeviceAddresses.contains(address)) {
+               // uniqueDeviceAddresses.add(address);
                 deviceMap.put(address, device);
                 String deviceItem = device.getName() + " - " + device.getAddress();
                 UnityPlayer.UnitySendMessage("BLEPlugin", "UpdateDeviceList", deviceItem );
                 discoveredDevices.add(new String[]{device.getName(), device.getAddress()});
-            }
+           // }
             // Add the device to the RecyclerView adapter
-            // runOnUiThread(() -> deviceAdapter.addDevice(device));
+            // runOnUiThsread(() -> deviceAdapter.addDevice(device));
         }
 
         @Override
@@ -320,6 +331,8 @@ public class BLEPluginManager {
         public void onScanFailed(int errorCode) {
             super.onScanFailed(errorCode);
             // Handle scan failure
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnScanFailed", String.valueOf(errorCode));
+
         }
     };
 
@@ -342,12 +355,16 @@ public class BLEPluginManager {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 // Successfully connected to the GATT server
                 Log.d(TAG, "onConnectionStateChange Connected");
-                Toast.makeText(context, "Connected to device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
+             //   Toast.makeText(context, "Connected to device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
                 bluetoothGatt.discoverServices();
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", gatt.getDevice().getAddress());
+
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // Disconnected from the GATT server
                 Log.d(TAG, "onConnectionStateChange Disconnected");
-                Toast.makeText(context, "Disconnected from device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
+             //   Toast.makeText(context, "Disconnected from device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", gatt.getDevice().getAddress());
+
             }
             //   });
         }
@@ -371,13 +388,15 @@ public class BLEPluginManager {
             }
         }
 
-//        @Override
-//        public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
-//            if (CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
-//                final String receivedData = new String(characteristic.getValue(), StandardCharsets.UTF_8);
-//                // runOnUiThread(() -> debugText.setText(receivedData));
-//            }
-//        }
+        @Override
+        public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
+            if (CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
+                final String receivedData = new String(characteristic.getValue(), StandardCharsets.UTF_8);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromServer", receivedData);
+
+                // runOnUiThread(() -> debugText.setText(receivedData));
+            }
+        }
 
 
 
@@ -410,8 +429,7 @@ public class BLEPluginManager {
     }
 
     public void testCallback() {
-
-        Log.d(TAG, "Test callback in adnroid");
+        Log.d(TAG, "Test callback in android");
         callUnityFunction();
     }
 
