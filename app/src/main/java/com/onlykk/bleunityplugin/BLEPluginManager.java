@@ -85,9 +85,6 @@ public class BLEPluginManager {
         this.context = context;
 
         bluetoothStateReceiver = new BluetoothStateReceiver();
-        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-        context.registerReceiver(bluetoothStateReceiver, filter);
-
         bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
 
@@ -97,6 +94,30 @@ public class BLEPluginManager {
         }
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
         bluetoothLeAdvertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+    }
+
+    public void enableBluetoothStateReceiver(){
+        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+        context.registerReceiver(bluetoothStateReceiver, filter);
+        UnityPlayer.UnitySendMessage("BLEPlugin", "OnBluetoothStateReceiverEnabled", "ENABLED");
+    }
+
+    public void disableBluetoothStateReceiver(){
+        try {
+            context.unregisterReceiver(bluetoothStateReceiver);
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnBluetoothStateReceiverDisabled", "SUCCESS");
+        } catch (IllegalArgumentException e) {
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnBluetoothStateReceiverDisabled", "FAILED");
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    public String getBluetoothDeviceName(){
+        if(bluetoothAdapter != null)
+        {
+            return bluetoothAdapter.getName();
+        }
+        return "BLE : Device doesn't exist";
     }
 
     public boolean isBluetoothSupported() {
