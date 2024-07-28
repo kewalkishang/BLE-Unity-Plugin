@@ -13,7 +13,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -32,5 +32,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    implementation("org.json:json:20220924")
     compileOnly(files("/Applications/Unity/Hub/Editor/6000.0.9f1/PlaybackEngines/AndroidPlayer/Variations/il2cpp/Release/Classes/classes.jar"))
 }

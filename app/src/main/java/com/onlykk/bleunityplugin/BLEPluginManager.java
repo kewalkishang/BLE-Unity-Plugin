@@ -41,7 +41,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+//import com.google.gson.Gson;
+//import com.google.gson.JsonObject;
 import com.unity3d.player.UnityPlayer;
+
+import org.json.JSONObject;
 
 public class BLEPluginManager {
 
@@ -156,6 +161,20 @@ public class BLEPluginManager {
     }
 
     @SuppressLint("MissingPermission")
+    public void disconnectClient() {
+        if (bluetoothGatt != null) {
+            Log.d(TAG, "No Client to Disconnect!");
+            return;
+        }
+
+        bluetoothGatt.disconnect();
+        bluetoothGatt.close();
+        bluetoothGatt = null;
+    }
+
+
+
+    @SuppressLint("MissingPermission")
     private void stopAdvertising() {
         if (bluetoothLeAdvertiser != null) {
             bluetoothLeAdvertiser.stopAdvertising(advertiseCallback);
@@ -257,12 +276,14 @@ public class BLEPluginManager {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                // Toast.makeText(context, "Device connected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
                 connectedDevices.add(device);
-                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", device.getAddress());
+                String deviceItem =getDeviceJson(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", deviceItem);
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                // Toast.makeText(context, "Device disconnected: " + device.getAddress(), Toast.LENGTH_SHORT).show();
                 connectedDevices.remove(device);
-                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", device.getAddress());
+                String deviceItem =getDeviceJson(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", deviceItem);
 
             }
             //  });
@@ -286,8 +307,8 @@ public class BLEPluginManager {
                 if (responseNeeded) {
                     bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
                 }
-                msgFromClient += new String(value, StandardCharsets.UTF_8);
-                String message = device.getAddress() + "|" + new String(value, StandardCharsets.UTF_8);
+               // msgFromClient += new String(value, StandardCharsets.UTF_8);
+                String message = new String(value, StandardCharsets.UTF_8);
 
                 UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromClient", message);
 
@@ -331,15 +352,11 @@ public class BLEPluginManager {
             BluetoothDevice device = result.getDevice();
             Log.d(TAG, "Found Device " + device.getName() + " :" + device.getAddress());
             String address = device.getAddress();
-          //  if (!uniqueDeviceAddresses.contains(address)) {
-               // uniqueDeviceAddresses.add(address);
-                deviceMap.put(address, device);
-                String deviceItem = device.getName() + " - " + device.getAddress();
-                UnityPlayer.UnitySendMessage("BLEPlugin", "UpdateDeviceList", deviceItem );
-                discoveredDevices.add(new String[]{device.getName(), device.getAddress()});
-           // }
-            // Add the device to the RecyclerView adapter
-            // runOnUiThsread(() -> deviceAdapter.addDevice(device));
+            deviceMap.put(address, device);
+            //String deviceItem = device.getName() + " - " + device.getAddress();
+            String deviceItem = getDeviceJson(device);
+            UnityPlayer.UnitySendMessage("BLEPlugin", "UpdateDeviceList", deviceItem );
+            discoveredDevices.add(new String[]{device.getName(), device.getAddress()});
         }
 
         @Override
@@ -356,6 +373,23 @@ public class BLEPluginManager {
 
         }
     };
+
+    @SuppressLint("MissingPermission")
+    private String getDeviceJson(BluetoothDevice device)
+    {
+        // Create JSON object  - java.lang.ClassNotFoundException: com.google.gson.JsonObject
+        try {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("name", device.getName());
+            jsonObject.put("address", device.getAddress());
+            String deviceItemJson = jsonObject.toString();
+            return deviceItemJson;
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+ }
 
     @SuppressLint("MissingPermission")
     private void connectToDevice(String deviceAddress) {
@@ -378,13 +412,19 @@ public class BLEPluginManager {
                 Log.d(TAG, "onConnectionStateChange Connected");
              //   Toast.makeText(context, "Connected to device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
                 bluetoothGatt.discoverServices();
-                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", gatt.getDevice().getAddress());
+                BluetoothDevice device = gatt.getDevice();
+               // String deviceItem = device.getName() + " - " + device.getAddress();
+                String deviceItem = getDeviceJson(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceConnected", deviceItem);
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // Disconnected from the GATT server
                 Log.d(TAG, "onConnectionStateChange Disconnected");
              //   Toast.makeText(context, "Disconnected from device: " + gatt.getDevice().getAddress(), Toast.LENGTH_LONG).show();
-                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", gatt.getDevice().getAddress());
+                BluetoothDevice device = gatt.getDevice();
+                //   String deviceItem = device.getName() + " - " + device.getAddress();
+                String deviceItem = getDeviceJson(device);
+                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDeviceDisconnected", deviceItem);
 
             }
             //   });
@@ -412,7 +452,7 @@ public class BLEPluginManager {
         @Override
         public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
             if (CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
-                final String receivedData = new String(characteristic.getValue(), StandardCharsets.UTF_8);
+                String receivedData = new String(characteristic.getValue(), StandardCharsets.UTF_8);
                 UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromServer", receivedData);
 
                 // runOnUiThread(() -> debugText.setText(receivedData));
