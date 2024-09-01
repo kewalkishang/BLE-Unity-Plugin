@@ -111,6 +111,14 @@ public class BLEScanner {
     };
 
 
+    /**
+     * Returns a list of details about discovered devices.
+     * @return Array of device details
+     */
+    public Map<String, BluetoothDevice> getDeviceMap() {
+        return deviceMap;
+    }
+
 
 
     /**

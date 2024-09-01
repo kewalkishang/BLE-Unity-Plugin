@@ -22,11 +22,16 @@ import com.unity3d.player.UnityPlayer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class BluetoothServer {
 
     private static final String TAG = "ServerManager";
+
+    private static final String END_MARKER = "END_OF_MSG";
+    private static final int CHUNK_SIZE = 20;
 
     private BluetoothLeAdvertiser bluetoothLeAdvertiser;
     private BluetoothGattServer bluetoothGattServer;
@@ -71,10 +76,10 @@ public class BluetoothServer {
     @SuppressLint("MissingPermission")
     public void startAdvertising() {
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
                 .setConnectable(true)
                 .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
                 .build();
 
         AdvertiseData data = new AdvertiseData.Builder()
@@ -92,7 +97,7 @@ public class BluetoothServer {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
-            UnityPlayer.UnitySendMessage("BLEPlugin", "OnAdvertisingStartSuccess", "");
+            UnityPlayer.UnitySendMessage("BLEPlugin", "OnAdvertisingStartSuccess", BLEPluginManager.SERVICE_UUID.toString());
         }
 
         @Override
@@ -120,6 +125,8 @@ public class BluetoothServer {
         bluetoothGattServer.addService(service);
     }
 
+    private StringBuilder receivedData = new StringBuilder();
+
     /**
      * GATT server callback for handling events.
      */
@@ -139,31 +146,52 @@ public class BluetoothServer {
             }
         }
 
-
+        private int mtu = 20;
         @SuppressLint("MissingPermission")
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
             if (BLEPluginManager.CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
+                Log.d(TAG, "Server ReadChanged  : "+  offset);
                 bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, characteristic.getValue());
             }
         }
 
+        private StringBuilder receivedData = new StringBuilder();
         @SuppressLint("MissingPermission")
         @Override
         public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
             if (BLEPluginManager.CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
-                characteristic.setValue(value);
+
+                String chunk = new String(value, StandardCharsets.UTF_8);
+                receivedData.append(chunk);
+                Log.d(TAG, "Server message received: " + chunk);
+
+
+                // Check if the chunk contains the "END_OF_MSG" marker
+                if (receivedData.toString().contains(END_MARKER)) {
+                    // Extract the complete message by removing the "END_OF_MSG" marker
+                    String completeMessage = receivedData.toString().replace(END_MARKER, "");
+                    Log.d(TAG, "Server Complete message received: " + completeMessage);
+
+                    // Clear the buffer for the next message
+                    receivedData.setLength(0);
+
+                    // Process the complete message as needed
+                    UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromClient", completeMessage);
+                }
+
                 if (responseNeeded) {
                     bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
                 }
-                // msgFromClient += new String(value, StandardCharsets.UTF_8);
-                String message = new String(value, StandardCharsets.UTF_8);
-
-                UnityPlayer.UnitySendMessage("BLEPlugin", "OnDataReceivedFromClient", message);
 
             }
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothDevice device, int mtu) {
+                Log.d(TAG, "MTU size changed to: " + mtu + " : " + device.getAddress().toString());
         }
     };
 
@@ -178,18 +206,36 @@ public class BluetoothServer {
             //Toast.makeText(context, "Server not started", Toast.LENGTH_SHORT).show();
             return;
         }
-        // Get the characteristic and set the value
+        Log.d(TAG,  "sendDataToClient : " +data);
+
+
+        // Append the "END_OF_MSG" marker to indicate the end of the message
+        String fullMessage = data + END_MARKER;
+
         BluetoothGattCharacteristic characteristic = bluetoothGattServer
                 .getService(BLEPluginManager.SERVICE_UUID)
                 .getCharacteristic(BLEPluginManager.CHARACTERISTIC_UUID);
 
-        characteristic.setValue(data.getBytes(StandardCharsets.UTF_8));
+        int mtu = 20; // Subtract the 3 bytes used by the ATT header
+        int dataLength = fullMessage.length();
+        int offset = 0;
 
-        // Notify all connected devices of the characteristic change
-        for (BluetoothDevice device : connectedDevices) {
-            bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false);
+        while (offset < dataLength) {
+            int end = Math.min(offset + mtu, dataLength);
+            String packet = fullMessage.substring(offset, end);
+            Log.d(TAG, "sendDataToClient Chunk : "+ packet );
+            characteristic.setValue(packet.getBytes(StandardCharsets.UTF_8));
+
+            for (BluetoothDevice device : connectedDevices) {
+                bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, false);
+            }
+
+            offset = end;
         }
+
+
     }
+
 
 
 

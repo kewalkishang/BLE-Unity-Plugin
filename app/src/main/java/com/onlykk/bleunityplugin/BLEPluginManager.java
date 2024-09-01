@@ -2,10 +2,13 @@ package com.onlykk.bleunityplugin;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.util.Log;
+
+import java.util.Map;
 import java.util.UUID;
 import com.unity3d.player.UnityPlayer;
 
@@ -156,7 +159,7 @@ public class BLEPluginManager {
     /**
      * Starts the GATT server and begins advertising.
      */
-    private void startServer(){
+    public void startServer(){
         if(server != null) {
             server.startServer();
         }
@@ -177,7 +180,7 @@ public class BLEPluginManager {
     /**
      * Starts scanning for BLE devices.
      */
-    private void startScan(){
+    public void startScan(){
         if(scanner != null) {
             scanner.startScan();
         }
@@ -188,7 +191,7 @@ public class BLEPluginManager {
      * Stops the BLE device scan.
      */
     @SuppressLint("MissingPermission")
-    private void stopScan(){
+    public void stopScan(){
         if(scanner != null) {
             scanner.stopScan();
         }
@@ -200,9 +203,18 @@ public class BLEPluginManager {
      * @param deviceAddress The address of the device to connect to
      */
     @SuppressLint("MissingPermission")
-    private void connectToDevice(String deviceAddress) {
-        if(client != null) {
-            client.connectToDevice(deviceAddress);
+    public void connectToDevice(String deviceAddress) {
+        if(scanner != null) {
+            Map<String, BluetoothDevice> deviceMap = scanner.getDeviceMap();
+            if (client != null && deviceMap.containsKey(deviceAddress)) {
+                client.connectToDevice(deviceMap.get(deviceAddress));
+            }
+            else{
+                Log.d(TAG, "Client or DeviceMap doesn't exist!");
+            }
+        }
+        else{
+            Log.d(TAG, "Scanner doesn't exist!");
         }
     }
 
@@ -223,7 +235,7 @@ public class BLEPluginManager {
      * @param data The data to send
      */
     @SuppressLint("MissingPermission")
-    private void sendDataToServer(String data) {
+    public void sendDataToServer(String data) {
         if(client != null) {
             client.sendDataToServer(data);
         }
@@ -235,7 +247,7 @@ public class BLEPluginManager {
      * @param data The data to send
      */
     @SuppressLint("MissingPermission")
-    private void sendDataToClient(String data) {
+    public void sendDataToClient(String data) {
         if(server != null) {
             server.sendDataToClient(data);
         }
